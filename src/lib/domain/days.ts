@@ -2,7 +2,7 @@
 export function dayKey(when: Date | number = new Date()): string {
   const date = new Date(when);
   const pad = (n: number) => String(n).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+  return `${String(date.getFullYear()).padStart(4, "0")}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
 export type Range = "today" | "week" | "month" | "all";
@@ -22,4 +22,24 @@ export function rangeStart(range: Range, now: Date = new Date()): number {
     start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
   if (range === "month") start.setDate(1);
   return start.getTime();
+}
+
+export type CalendarRange = { start: string; end: string };
+
+export function readCalendarRange(
+  params: URLSearchParams,
+): CalendarRange | null {
+  const start = params.get("start");
+  const end = params.get("end");
+  if (!start || !end || !validDay(start) || !validDay(end) || start > end)
+    return null;
+  return { start, end };
+}
+
+function validDay(key: string): boolean {
+  return (
+    /^\d{4}-\d{2}-\d{2}$/.test(key) &&
+    !key.startsWith("0000") &&
+    dayKey(new Date(key + "T12:00:00")) === key
+  );
 }

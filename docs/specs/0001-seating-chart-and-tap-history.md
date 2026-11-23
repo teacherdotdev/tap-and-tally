@@ -264,6 +264,10 @@ screen as a CSV.
 
 ### Analytics and export
 
+For the browser-only redesign's calendar presets, custom ranges and report links, see
+[Reports in the README](../../README.md#what-it-does). The original account-based design
+specified the following:
+
 - One table. Rows are Students, one per Student, with a Class column. Columns are the
   selected Behaviors.
 - Filters: a **window** (rolling last 7 days, rolling last 30 days, all time), a

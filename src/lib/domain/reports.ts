@@ -1,4 +1,4 @@
-import { dayKey, rangeStart } from "./days";
+import { dayKey, rangeStart, type CalendarRange } from "./days";
 import { orderStudents, fullName } from "./students";
 import type { Behavior, Class, Data, Id, Student } from "./types";
 
@@ -9,22 +9,49 @@ export type ReportRow = {
   counts: number[];
   absent: number;
 };
-export type Report = { columns: ReportColumn[]; rows: ReportRow[] };
+export type Report = {
+  columns: ReportColumn[];
+  rows: ReportRow[];
+  hasActivity: boolean;
+};
+
+function classActivityFilter(cls: Class) {
+  const studentIds = new Set(cls.students.map((student) => student.id));
+  return (activity: { student: Id }) => studentIds.has(activity.student);
+}
+
+/** The local calendar dates with a Tap or Absence for this Class. */
+export function reportDates(cls: Class, data: Data): string[] {
+  const inClass = classActivityFilter(cls);
+  const dates = new Set([
+    ...data.taps.filter(inClass).map((tap) => dayKey(tap.at)),
+    ...data.absences.filter(inClass).map((absence) => absence.day),
+  ]);
+  return [...dates].sort();
+}
 
 /**
- * One Class's table for everything since `since`: a row per Student, a column per
+ * One Class's table for a preset start time or an inclusive calendar range: a row per Student, a column per
  * Behavior. Behaviors no longer on the Class's Menu still get a column when they have
  * Taps in range, and Former Students still get a row when they have any history.
  */
-export function buildReport(cls: Class, data: Data, since: number): Report {
-  const studentIds = new Set(cls.students.map((s) => s.id));
+export function buildReport(
+  cls: Class,
+  data: Data,
+  range: number | CalendarRange,
+): Report {
+  const inClass = classActivityFilter(cls);
+  const includesDay = (day: string) =>
+    typeof range === "number"
+      ? new Date(day + "T23:59:59").getTime() >= range
+      : day >= range.start && day <= range.end;
   const taps = data.taps.filter(
-    (t) => studentIds.has(t.student) && t.at >= since,
+    (t) =>
+      inClass(t) &&
+      (typeof range === "number" ? t.at >= range : includesDay(dayKey(t.at))),
   );
-  const sinceDay = new Date(since);
   const absences = data.absences.filter(
-    (a) =>
-      studentIds.has(a.student) && new Date(a.day + "T23:59:59") >= sinceDay,
+    (a) => inClass(a) && includesDay(a.day),
   );
 
   const menu = data.menus.find((m) => m.id === cls.menuId);
@@ -60,7 +87,7 @@ export function buildReport(cls: Class, data: Data, since: number): Report {
       absent: absences.filter((a) => a.student === s.id).length,
     }));
 
-  return { columns, rows };
+  return { columns, rows, hasActivity: taps.length > 0 || absences.length > 0 };
 }
 
 function deletedBehavior(id: Id): Behavior {

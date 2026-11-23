@@ -18,8 +18,10 @@ Tap & Tally keeps the count. No account, and nothing leaves the laptop.
 - **Hold to mark absent.** The tile fills from the left; when it's full, they're marked.
 - **Room Layouts and Menus.** Shared libraries, shown as cards. Draw rooms Google Slides
   style (resize, turn, snap to the grid); export either as a file and import a colleague's.
-- **Reports.** One table per class for today, this week, this month or all time, with a
-  spreadsheet download.
+- **Reports.** One table per class for today, this calendar week (starting Monday),
+  this calendar month, all time, or a custom date range. Custom starts and ends on dates
+  with a tap or absence and includes both dates. Reopening a custom report link in a
+  browser with that class's data restores the class and dates. Download the table as a CSV.
 - **Backup and restore.** Everything lives in the browser, so Settings offers a backup file,
   and the side menu nudges after a week without one.
 

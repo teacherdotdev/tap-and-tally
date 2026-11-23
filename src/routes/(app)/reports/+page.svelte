@@ -1,21 +1,60 @@
 <!-- One table per Class and date range: students down the side, Behaviors across the top. -->
 <script lang="ts">
-  import { RANGES, dayKey, rangeStart, type Range } from "$lib/domain/days";
-  import { buildReport, reportCsv } from "$lib/domain/reports";
+  import { navigating, page } from "$app/state";
+  import { goto } from "$app/navigation";
+  import {
+    RANGES,
+    dayKey,
+    rangeStart,
+    readCalendarRange,
+    type CalendarRange,
+    type Range,
+  } from "$lib/domain/days";
+  import { buildReport, reportCsv, reportDates } from "$lib/domain/reports";
+  import ReportDateRange from "$lib/components/ReportDateRange.svelte";
   import Icon from "$lib/components/Icon.svelte";
   import { store } from "$lib/store.svelte";
 
-  let classId = $state(store.data.classes[0]?.id ?? "");
+  let pendingRange = $state(false);
   let range = $state<Range>("week");
-  const cls = $derived(store.findClass(classId));
-  const report = $derived(cls ? buildReport(cls, store.data, rangeStart(range)) : null);
+  const requestedClass = $derived(page.url.searchParams.get("class"));
+  const cls = $derived(
+    requestedClass === null ? store.data.classes[0] : store.findClass(requestedClass),
+  );
+  const availableDates = $derived(cls ? reportDates(cls, store.data) : []);
+  const custom = $derived(readCalendarRange(page.url.searchParams));
+  const report = $derived(
+    cls ? buildReport(cls, store.data, custom ?? rangeStart(range)) : null,
+  );
+  const downloadDisabled = $derived(pendingRange || navigating.to !== null);
+
+  function setFilters(classId: string, dates: CalendarRange | null) {
+    const url = new URL(page.url);
+    url.searchParams.set("class", classId);
+    if (dates) {
+      url.searchParams.set("start", dates.start);
+      url.searchParams.set("end", dates.end);
+    } else {
+      url.searchParams.delete("start");
+      url.searchParams.delete("end");
+    }
+    if (url.href !== page.url.href) {
+      void goto(url, { replaceState: true, keepFocus: true, noScroll: true });
+    }
+  }
+
+  function selectPreset(classId: string, value: Range) {
+    range = value;
+    setFilters(classId, null);
+  }
 
   function download() {
-    if (!cls || !report) return;
+    if (!cls || !report || downloadDisabled) return;
     const file = new Blob([reportCsv(report)], { type: "text/csv" });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(file);
-    link.download = `${cls.name} - ${RANGES.find((r) => r.value === range)?.label} - ${dayKey()}.csv`;
+    const period = custom ? `${custom.start} to ${custom.end}` : RANGES.find((r) => r.value === range)?.label;
+    link.download = `${cls.name} - ${period} - ${dayKey()}.csv`;
     link.click();
     URL.revokeObjectURL(link.href);
   }
@@ -32,18 +71,39 @@
     <div class="row">
       <label class="grow">
         Class
-        <select bind:value={classId}>
+        <select
+          value={cls?.id ?? ""}
+          onchange={(event) => setFilters(event.currentTarget.value, custom)}
+        >
+          {#if !cls}<option value="" disabled>Choose a class</option>{/if}
           {#each store.data.classes as c (c.id)}<option value={c.id}>{c.name}</option>{/each}
         </select>
       </label>
-      <div class="ranges" role="radiogroup" aria-label="Date range">
-        {#each RANGES as r}
-          <button role="radio" aria-checked={range === r.value} class:on={range === r.value} onclick={() => (range = r.value)}>{r.label}</button>
-        {/each}
-      </div>
+      {#if cls}
+        {@const classId = cls.id}
+        <div class="ranges" role="radiogroup" aria-label="Date range">
+          {#each RANGES as r}
+            <button role="radio" aria-checked={!custom && range === r.value} class:on={!custom && range === r.value} onclick={() => selectPreset(classId, r.value)}>{r.label}</button>
+          {/each}
+        </div>
+        {#key classId}
+          <ReportDateRange
+            applied={custom}
+            {availableDates}
+            onselect={(dates) => setFilters(classId, dates)}
+            ondraftchange={(pending) => (pendingRange = pending)}
+          />
+        {/key}
+      {/if}
     </div>
 
+    {#if !cls}
+      <p class="muted" role="status">This report’s class is unavailable in this browser. Choose a class to view a report.</p>
+    {/if}
     {#if report}
+      {#if custom && !report.hasActivity}
+        <p class="muted" role="status">No taps or absences recorded in this date range.</p>
+      {/if}
       <div class="card table-wrap">
         <table>
           <thead>
@@ -70,7 +130,7 @@
       </div>
       <div class="row">
         <span class="spacer"></span>
-        <button class="btn btn-primary" onclick={download}><Icon name="download" size={16} /> Download spreadsheet</button>
+        <button class="btn btn-primary" onclick={download} disabled={downloadDisabled}><Icon name="download" size={16} /> Download spreadsheet</button>
       </div>
     {/if}
   {/if}
